@@ -480,7 +480,7 @@ LUXEN
 <div style="font-family:'Orbitron'; font-size:1.6rem; color:var(--accent-glow); font-weight:800; text-shadow:var(--neon-glow);" id="currentPriceDisplay">1.00</div>
 </div>
 <input type="number" id="basePriceInput" class="input-field" value="1.00" step="0.1" inputmode="decimal">
-<button class="btn-submit" onclick="updateBasePrice()">💾 UPDATE PRICE</button>
+<button class="btn-submit" id="updatePriceBtn" onclick="updateBasePrice()">💾 UPDATE PRICE</button>
 </div>
 </div>
 
@@ -548,12 +548,14 @@ const WEB_API_KEY = 'AIzaSyDmZ_227JqCvlVDEEZLBDm4Zn4qaNDVAfg';
 const FIREBASE_URL = 'https://luxen-master-default-rtdb.firebaseio.com/';
 const ADMIN_PASS = 'LuxenAdmin2024!';
 const WORKER_URL = 'https://luxenxit-client.luxenxit-728.workers.dev/generate';
-const APP_LINK = 'https://luxen-client.luxenxit-728.workers.dev/';
+const UPDATE_PRICE_URL = 'https://luxenxit-client.luxenxit-728.workers.dev/update-price';
+const APP_LINK = 'https://luxenxit-client.luxenxit-728.workers.dev/';
 
 let activeReseller = null;
 let cachedToken = null;
 let tokenExpiry = 0;
 let genBusy = false;
+let priceBusy = false;
 let msgTimer = null;
 
 const $ = (id) => document.getElementById(id);
@@ -942,15 +944,40 @@ async function loadAdminDashboard() {
   }
 }
 
+/* تحديث السعر عبر الـ Worker فقط (بدون كتابة مباشرة في Firebase) */
 async function updateBasePrice() {
+  if (priceBusy) return;
   const p = parseFloat($('basePriceInput').value);
   if (isNaN(p) || p < 0) { showMsg('⚠ Enter a valid price!', 'var(--danger-red)'); return; }
+
+  priceBusy = true;
+  const btn = $('updatePriceBtn');
+  btn.disabled = true;
+  showMsg('⏳ Updating price...', 'var(--accent-glow)');
+
   try {
-    await fb('PUT', 'settings/price', p);
+    const adminToken = await getAuthToken();
+    const res = await fetch(UPDATE_PRICE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ price: p, adminToken: adminToken })
+    });
+
+    let data = null;
+    try { data = await res.json(); } catch (e) {}
+
+    if (!res.ok) {
+      const reason = data && (data.error || data.message);
+      throw new Error(reason ? String(reason) : 'Server error ' + res.status);
+    }
+
     showMsg('✅ Price updated successfully!', 'var(--success-green)');
     loadAdminDashboard();
   } catch (e) {
-    showMsg('❌ Error updating price', 'var(--danger-red)');
+    showMsg('❌ ' + (e && e.message ? e.message : 'Error updating price'), 'var(--danger-red)');
+  } finally {
+    priceBusy = false;
+    btn.disabled = false;
   }
 }
 
@@ -1063,4 +1090,4 @@ $('adminInputPass').addEventListener('keydown', (e) => { if (e.key === 'Enter') 
 </script>
 
 </body>
-</html>
+  </html>
