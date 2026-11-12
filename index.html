@@ -546,7 +546,7 @@ LUXEN
 <script>
 const WEB_API_KEY = 'AIzaSyDmZ_227JqCvlVDEEZLBDm4Zn4qaNDVAfg';
 const FIREBASE_URL = 'https://luxen-master-default-rtdb.firebaseio.com/';
-const ADMIN_PASS = 'LuxenAdmin2024!';
+const ADMIN_PASS_B64 = 'THV4ZW5YaXREaGlhWGl0';
 const WORKER_URL = 'https://luxenxit-client.luxenxit-728.workers.dev/generate';
 const UPDATE_PRICE_URL = 'https://luxenxit-client.luxenxit-728.workers.dev/update-price';
 const APP_LINK = 'https://luxenxit-client.luxenxit-728.workers.dev/';
@@ -668,7 +668,7 @@ async function loginAsReseller() {
 async function loginAsAdmin() {
   const pass = $('adminInputPass').value;
   if (!pass) { showMsg('⚠ Enter password!', 'var(--danger-red)'); return; }
-  if (pass !== ADMIN_PASS) { showMsg('❌ Incorrect Admin Password!', 'var(--danger-red)'); return; }
+  if (btoa(pass) !== ADMIN_PASS_B64) { showMsg('❌ Incorrect Admin Password!', 'var(--danger-red)'); return; }
   try {
     await getAuthToken();
     $('adminLoginView').classList.add('hidden');
@@ -944,33 +944,29 @@ async function loadAdminDashboard() {
   }
 }
 
-/* تحديث السعر عبر الـ Worker فقط (بدون كتابة مباشرة في Firebase) */
 async function updateBasePrice() {
   if (priceBusy) return;
   const p = parseFloat($('basePriceInput').value);
   if (isNaN(p) || p < 0) { showMsg('⚠ Enter a valid price!', 'var(--danger-red)'); return; }
-
+  const adminPass = prompt("أدخل كلمة مرور الأدمن لتأكيد تغيير السعر:");
+  if (!adminPass) { showMsg('⚠ Password required!', 'var(--danger-red)'); return; }
   priceBusy = true;
   const btn = $('updatePriceBtn');
   btn.disabled = true;
   showMsg('⏳ Updating price...', 'var(--accent-glow)');
-
   try {
     const adminToken = await getAuthToken();
     const res = await fetch(UPDATE_PRICE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ price: p, adminToken: adminToken })
+      body: JSON.stringify({ price: p, adminToken: adminToken, adminPass: adminPass })
     });
-
     let data = null;
     try { data = await res.json(); } catch (e) {}
-
     if (!res.ok) {
       const reason = data && (data.error || data.message);
       throw new Error(reason ? String(reason) : 'Server error ' + res.status);
     }
-
     showMsg('✅ Price updated successfully!', 'var(--success-green)');
     loadAdminDashboard();
   } catch (e) {
